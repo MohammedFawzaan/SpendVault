@@ -2,6 +2,7 @@ import { db } from '@/db';
 import { transactions, categories, type Transaction, type InsertTransaction } from '@/db/schema';
 import { eq, and, desc, like, or, sql } from 'drizzle-orm';
 import { now } from '@/utils/date';
+import { checkBudgetAlerts } from '@/services/budgetAlerts';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -40,6 +41,7 @@ export function createTransaction(
   const result = db.insert(transactions)
     .values({ ...data, createdAt: timestamp, updatedAt: timestamp })
     .run();
+  if (data.confirmed) checkBudgetAlerts();
   return result.lastInsertRowId as number;
 }
 
@@ -53,6 +55,7 @@ export function updateTransaction(
     .set({ ...data, updatedAt: now() })
     .where(eq(transactions.id, id))
     .run();
+  checkBudgetAlerts();
 }
 
 export function confirmTransaction(

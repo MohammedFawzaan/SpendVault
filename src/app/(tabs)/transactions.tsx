@@ -28,6 +28,8 @@ import { TransactionDetailModal } from '@/components/transactions/TransactionDet
 import { FilterSheet } from '@/components/transactions/FilterSheet';
 import type { FilterState } from '@/components/transactions/FilterSheet';
 import { getUnconfirmedTransactions } from '@/db/queries/transactions';
+import { ConfirmSmsModal } from '@/components/transactions/ConfirmSmsModal';
+import { MessageSquare } from 'lucide-react-native';
 
 interface Section {
   title: string;
@@ -57,6 +59,7 @@ export default function TransactionsScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [summary, setSummary] = useState({ income: 0, expenses: 0 });
   const [pendingCount, setPendingCount] = useState(0);
+  const [smsModalVisible, setSmsModalVisible] = useState(false);
 
   const load = useCallback(() => {
     const data = getTransactionsByMonthYear(month, year, filters);
@@ -188,6 +191,16 @@ export default function TransactionsScreen() {
         })}
       </ScrollView>
 
+      {/* Pending SMS banner */}
+      {pendingCount > 0 && (
+        <TouchableOpacity style={styles.smsBanner} onPress={() => setSmsModalVisible(true)} activeOpacity={0.8}>
+          <MessageSquare size={16} color={Colors.primary} strokeWidth={1.8} />
+          <Text style={styles.smsBannerText}>
+            {pendingCount} pending SMS transaction{pendingCount > 1 ? 's' : ''} — tap to complete
+          </Text>
+        </TouchableOpacity>
+      )}
+
       {/* Summary */}
       <View style={styles.summaryRow}>
         <View style={styles.summaryItem}>
@@ -246,6 +259,12 @@ export default function TransactionsScreen() {
         onApply={(f: FilterState) => { setFilters(f); }}
         onClose={() => setFilterVisible(false)}
       />
+
+      <ConfirmSmsModal
+        visible={smsModalVisible}
+        onClose={() => setSmsModalVisible(false)}
+        onConfirmed={() => load()}
+      />
     </SafeAreaView>
   );
 }
@@ -269,6 +288,15 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05, shadowRadius: 4, elevation: 2,
   },
   iconBtnActive: { backgroundColor: Colors.primaryLight },
+
+  smsBanner: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    marginHorizontal: 16, marginBottom: 8,
+    backgroundColor: Colors.primaryLight, borderRadius: 12,
+    paddingHorizontal: 14, paddingVertical: 10,
+    borderWidth: 1, borderColor: Colors.primary,
+  },
+  smsBannerText: { ...Typography.body2, color: Colors.primary, flex: 1 },
 
   searchBar: {
     flexDirection: 'row', alignItems: 'center', gap: 8,

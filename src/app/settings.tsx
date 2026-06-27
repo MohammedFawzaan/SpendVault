@@ -23,7 +23,8 @@ import { Colors } from '@/constants/colors';
 import { Typography, FontFamily } from '@/constants/typography';
 import { Shadows } from '@/constants/spacing';
 import { getProfile, updateProfile } from '@/db/queries/userProfile';
-import { getAuthMethod, getLastBackupAt, setLastBackupAt } from '@/db/queries/config';
+import { getAuthMethod, getLastBackupAt } from '@/db/queries/config';
+import { performBackup, shareBackup, pickAndValidateBackup, applyRestore } from '@/services/backup';
 import type { UserProfile } from '@/db/schema';
 
 const EMOJI_OPTIONS = ['😀','🧑','👨','👩','🧔','🐱','🦁','🐸','🌟','🔥','💎','🎯'];
@@ -152,18 +153,59 @@ export default function SettingsScreen() {
 
   useEffect(() => { load(); }, []);
 
-  function handleBackup() {
-    const ts = new Date().toISOString();
-    setLastBackupAt(ts);
-    setLastBackup(ts);
-    Alert.alert('Backup Complete', 'Your data has been backed up successfully.');
+  async function handleBackup() {
+    try {
+      await performBackup();
+      load();
+      Alert.alert('Backup Complete', 'Your data has been saved to device storage.');
+    } catch {
+      Alert.alert('Backup Failed', 'Check storage permissions and try again.');
+    }
   }
 
-  function handleRestore() {
-    Alert.alert('Restore Data', 'This will restore from your last backup. Continue?', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Restore', style: 'destructive', onPress: () => Alert.alert('Restored', 'Data restored from last backup.') },
-    ]);
+  async function handleShare() {
+    try {
+      await shareBackup();
+    } catch {
+      Alert.alert('Share Failed', 'Could not share the backup file.');
+    }
+  }
+
+  async function handleRestore() {
+    Alert.alert(
+      'Restore Data',
+      'This will replace ALL your current data. This cannot be undone. Continue?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Continue', style: 'destructive',
+          onPress: async () => {
+            const result = await pickAndValidateBackup();
+            if (!result.ok) {
+              if (result.error !== 'cancelled') Alert.alert('Restore Failed', result.error);
+              return;
+            }
+            const date = new Date(result.exportedAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+            Alert.alert(
+              'Confirm Restore',
+              `Restore data from backup dated ${date}? All current data will be replaced.`,
+              [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                  text: 'Restore', style: 'destructive',
+                  onPress: () => {
+                    applyRestore(result.data);
+                    load();
+                    Alert.alert('Restored', 'Data restored successfully.');
+                    router.replace('/');
+                  },
+                },
+              ],
+            );
+          },
+        },
+      ],
+    );
   }
 
   function formatBackupTime(iso: string | null) {
@@ -215,6 +257,8 @@ export default function SettingsScreen() {
           </View>
           <View style={styles.divider} />
           <SettingsRow label="Backup Now" onPress={handleBackup} />
+          <View style={styles.divider} />
+          <SettingsRow label="Share Backup" onPress={handleShare} />
           <View style={styles.divider} />
           <SettingsRow label="Restore from Backup" onPress={handleRestore} />
         </View>
