@@ -1,0 +1,29 @@
+diff --git a/node_modules/react-native-get-sms-android/android/build.gradle b/node_modules/react-native-get-sms-android/android/build.gradle
+index 0de40fc..2b73328 100644
+--- a/node_modules/react-native-get-sms-android/android/build.gradle
++++ b/node_modules/react-native-get-sms-android/android/build.gradle
+@@ -1,8 +1,7 @@
+-
+ buildscript {
+     repositories {
+         google()
+-        jcenter()
++        mavenCentral()  // ← replaced jcenter()
+     }
+ 
+     dependencies {
+@@ -33,13 +32,11 @@ android {
+ repositories {
+     google()
+     maven {
+-        // All of React Native (JS, Obj-C sources, Android binaries) is installed from npm
+         url "$rootDir/../node_modules/react-native/android"
+     }
+-    jcenter()
++    mavenCentral()  // ← replaced jcenter()
+ }
+ 
+ dependencies {
+     compileOnly "com.facebook.react:react-native:${safeExtGet('reactNativeVersion', '+')}"
+ }
+-  
