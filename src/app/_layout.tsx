@@ -15,7 +15,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { requestNotificationPermission } from '@/services/notifications';
-import { scanRecentSms } from '@/services/smsListener';
+import { startSmsListener } from '@/services/smsListener';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -51,7 +51,6 @@ export default function RootLayout() {
         initializeDatabase();
         seedDatabase();
         await requestNotificationPermission();
-        scanRecentSms().catch(() => {});
       } catch (e) {
         console.error('App init failed:', e);
       } finally {
@@ -60,6 +59,9 @@ export default function RootLayout() {
       }
     }
     prepare();
+
+    const removeSmsListener = startSmsListener();
+    return () => removeSmsListener();
   }, []);
 
   if (!ready) return null;
