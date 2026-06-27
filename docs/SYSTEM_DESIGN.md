@@ -1,15 +1,15 @@
 # System Design & Technical Stack
-## Comprehensive Personal Finance Tracker — Android App
+## SpendVault — Comprehensive Personal Finance Tracker — Android App
 
 ---
 
 ## 1. Architecture Philosophy
 
-- **Offline-first** — all data lives on device, no network dependency
-- **Single user, single device** — no auth, no sync, no server
-- **SMS-driven automation** — transactions auto-detected from bank SMS
-- **Encrypted at rest** — database and backup both encrypted
-- **APK distributable** — any Android device can install and run independently
+- Offline-first — all data lives on device, no network dependency
+- Single user, single device — no auth system, no sync, no server
+- SMS-driven automation — transactions auto-detected from bank SMS
+- Manual entry always available — every transaction can be added manually
+- APK distributable — any Android device can install and run independently
 
 ---
 
@@ -18,60 +18,60 @@
 | Layer | Technology | Reason |
 |---|---|---|
 | Framework | React Native + Expo | Cross-platform, familiar stack |
+| Design Framework | NativeWind (Tailwind for RN) | Utility-first styling, fast UI development |
 | Language | TypeScript | Type safety, familiar from existing stack |
 | Navigation | Expo Router | File-based routing, clean screen management |
 | Database | expo-sqlite | Offline, on-device, relational |
 | ORM | Drizzle ORM | Type-safe queries, schema migrations |
-| DB Encryption | SQLCipher | Encrypts SQLite file at rest |
 | SMS Reading | react-native-get-sms-android | READ_SMS permission, background listener |
 | Biometric Auth | expo-local-authentication | Fingerprint, face, PIN fallback |
-| File System | expo-file-system | Read/write JSON backup to device storage |
+| File System | expo-file-system | Read/write JSON backup to device Downloads |
 | File Sharing | expo-sharing | Native Android share sheet |
-| Notifications | expo-notifications | Budget limit alerts, salary reminders |
+| Notifications | expo-notifications | Budget limit alerts, SMS detection alerts |
+| Background Tasks | expo-background-fetch + expo-task-manager | 12:00 AM daily backup |
+| Animations | react-native-reanimated | Smooth transitions and interactions |
 
 ---
 
 ## 3. High-Level Architecture
 
 ```
-┌──────────────────────────────────────────────┐
-│               App Lock Layer                  │
-│       Biometric / PIN (expo-local-auth)       │
-│     App blocked until authentication passes   │
-└────────────────────┬─────────────────────────┘
-                     ↓
-┌──────────────────────────────────────────────┐
-│                 App Screens                   │
-│   Dashboard │ Transactions │ Budget │ Goals  │
-│                  Settings                     │
-└───────────┬──────────────────────────────────┘
-            ↓
-┌──────────────────────────────────────────────┐
-│              Business Logic Layer             │
-│                                               │
-│  ┌─────────────────┐  ┌────────────────────┐ │
-│  │   Transaction   │  │    SMS Parser      │ │
-│  │    Manager      │  │  (regex engine)    │ │
-│  └────────┬────────┘  └────────┬───────────┘ │
-│           │                    │              │
-│  ┌────────┴────────┐  ┌────────┴───────────┐ │
-│  │ Budget Manager  │  │   Backup Manager   │ │
-│  └────────┬────────┘  └────────┬───────────┘ │
-└───────────┼────────────────────┼─────────────┘
-            ↓                    ↓
-┌──────────────────┐  ┌─────────────────────────┐
-│  SQLCipher       │  │  expo-file-system        │
-│  Encrypted       │  │  expense-backup.json     │
-│  SQLite DB       │  │  /Downloads/             │
-└──────────────────┘  └────────┬────────────────┘
-                               ↓
-                  ┌────────────────────────┐
-                  │  expo-sharing          │
-                  │  Native Share Sheet    │
-                  │  → Google Drive        │
-                  │  → WhatsApp            │
-                  │  → Email               │
-                  └────────────────────────┘
++----------------------------------------------+
+|              App Lock Layer                   |
+|    Biometric / PIN (expo-local-auth)          |
+|  App blocked until authentication passes      |
++--------------------+--------------------------+
+                     |
+                     v
++----------------------------------------------+
+|              App Screens (4 Tabs)            |
+|  Home | Transactions | Budget+Goals | Profile |
+|              Settings Screen                  |
++----------+-----------------------------------+
+           |
+           v
++----------------------------------------------+
+|           Business Logic Layer               |
+|                                              |
+|  Transaction Manager    SMS Parser           |
+|  Budget Manager         Backup Manager       |
+|  Goal Manager           Notification Service |
++----------+------------------+---------------+
+           |                  |
+           v                  v
++------------------+  +------------------------+
+|   SQLite DB      |  |  expo-file-system      |
+|  (expo-sqlite    |  |  expense-backup.json   |
+|  + Drizzle ORM)  |  |  /Downloads/           |
+|  App internal    |  +----------+-------------+
+|  private storage |             |
++------------------+             v
+                      +------------------------+
+                      |  expo-sharing          |
+                      |  Native Share Sheet    |
+                      |  Google Drive          |
+                      |  WhatsApp / Email      |
+                      +------------------------+
 ```
 
 ---
@@ -80,34 +80,42 @@
 
 ```
 Bank sends SMS after any transaction
-            ↓
-react-native-get-sms-android
-    (READ_SMS permission granted)
-            ↓
+            |
+            v
+react-native-get-sms-android (READ_SMS permission granted)
+            |
+            v
 Incoming SMS captured in background
-            ↓
-Is sender a bank? (check against known bank sender IDs)
-            ↓
-         Yes → Run regex engine
-            ↓
-   Extract fields:
-   - Amount      → Rs\. ?(\d+(?:\.\d+)?)
-   - Type        → 'debited' | 'credited'
-   - UPI Ref     → UPI Ref:? ?(\d+)
-   - Account     → A\/c .*?(\d{4})
-   - Date/Time   → from SMS timestamp
-            ↓
+            |
+            v
+Is sender a known bank sender ID?
+            |
+           Yes
+            |
+            v
+Run regex engine — extract fields:
+  Amount      ->  Rs\.?(\d+(?:\.\d+)?)
+  Type        ->  'debited' | 'credited'
+  UPI Ref     ->  UPI Ref:? ?(\d+)
+  Account     ->  A\/c .*?(\d{4})
+  Date/Time   ->  from SMS timestamp
+            |
+            v
 Create unconfirmed transaction in DB
-(source = 'sms', confirmed = false)
-            ↓
-Push notification to user
-"New transaction detected — ₹500 debited. Tap to complete."
-            ↓
-User taps → opens modal with pre-filled fields
-            ↓
-User fills: who, what, category, nature, note
-            ↓
-Transaction saved as confirmed ✅
+(source = 'sms', confirmed = 0)
+            |
+            v
+Push notification to user:
+"New transaction detected — 500 debited. Tap to complete."
+            |
+            v
+User taps notification — modal opens with pre-filled fields
+            |
+            v
+User fills: who, what, category, nature, where, why, note
+            |
+            v
+Transaction saved as confirmed (confirmed = 1)
 ```
 
 ### Supported SMS Patterns
@@ -121,34 +129,33 @@ Transaction saved as confirmed ✅
 
 ## 5. Backup & Restore Flow
 
-### Auto-Backup Triggers
+### Backup Triggers
 ```
-1. App opened → check last_backup_at from config table
-   → if more than 24 hours ago → trigger backup silently
+Trigger 1 — Daily at 12:00 AM
+  expo-background-fetch fires at midnight
+  Backup runs silently in background
 
-2. App goes to background (AppState = 'background')
-   → trigger backup silently
-
-3. User taps "Backup Now" in settings
-   → trigger backup with confirmation toast
+Trigger 2 — Manual
+  User taps "Backup Now" in Settings
+  Backup runs with confirmation toast on completion
 ```
 
 ### Backup Flow
 ```
-Trigger backup
-      ↓
+Backup triggered
+      |
+      v
 Fetch all records from:
-  - transactions
-  - categories
-  - budgets
-  - savings_goals
-  - config
-      ↓
-Serialize to JSON:
+  user_profile, transactions, categories,
+  budgets, savings_goals, config
+      |
+      v
+Serialize to plain JSON:
 {
   "version": "1.0",
-  "exported_at": "2026-06-27T10:00:00Z",
+  "exported_at": "2026-06-27T00:00:00Z",
   "data": {
+    "user_profile": {...},
     "transactions": [...],
     "categories": [...],
     "budgets": [...],
@@ -156,169 +163,212 @@ Serialize to JSON:
     "config": [...]
   }
 }
-      ↓
-Encrypt JSON with user-set password
-      ↓
+      |
+      v
 Write to /Downloads/expense-backup.json
-(overwrite previous file)
-      ↓
+(overwrites previous file)
+      |
+      v
 Update config: last_backup_at = now()
-      ↓
-Show toast: "Backup saved successfully"
+      |
+      v
+Toast: "Backup saved successfully"
 ```
 
 ### Restore Flow
 ```
 User taps "Restore from Backup"
-      ↓
-File picker opens → user selects JSON file
-      ↓
-Confirmation prompt:
-"This will replace ALL existing data. Continue?"
-      ↓
-User enters backup password → decrypt JSON
-      ↓
-Validate JSON structure and version
-      ↓
-Clear all existing tables
-      ↓
-Re-insert all records from JSON
-      ↓
-Show toast: "Data restored successfully"
-      ↓
-App reloads to Dashboard
+      |
+      v
+File picker opens — user selects JSON file
+      |
+      v
+Validation runs:
+  - Is it valid JSON?
+  - Does it have required top-level keys?
+  - Is app version compatible?
+      |
+      |-- Validation FAILS
+      |     Show error: "Invalid or incompatible backup file"
+      |     Restore aborted — existing data untouched
+      |
+      |-- Validation PASSES
+            |
+            v
+      Confirmation prompt:
+      "This will replace ALL existing data. Continue?"
+            |
+            v
+      Clear all existing tables
+            |
+            v
+      Re-insert all records from JSON
+            |
+            v
+      Toast: "Data restored successfully"
+            |
+            v
+      App reloads to Dashboard
 ```
 
 ### Phone Migration Flow
 ```
 Old Phone:
-  Settings → Backup Now → Share → Google Drive / WhatsApp
+  Settings > Backup Now > Share > Google Drive / WhatsApp / Email
 
 New Phone:
   Install APK
-  Settings → Restore from Backup
-  Select JSON file from Drive / WhatsApp
-  Enter password → data restored ✅
+  Complete onboarding (profile + security)
+  Settings > Restore from Backup
+  Select JSON file
+  Validation passes > data fully restored
 ```
 
 ---
 
 ## 6. Security Architecture
 
-### Layer 1 — App Lock
+### App Lock (Only Security Layer)
 ```
 App opens
-    ↓
-config: lock_enabled = true?
-    ↓ Yes
+    |
+    v
 expo-local-authentication
-    ↓
+    |
+    v
 Biometric available?
-  Yes → Fingerprint / Face prompt
-  No  → PIN prompt (fallback)
-    ↓
-Authentication passes → app unlocks
-Authentication fails  → app stays locked
+  Yes -> Fingerprint / Face prompt fires automatically
+  No  -> PIN prompt shown
+    |
+    v
+Authentication passes -> app unlocks, all screens accessible
+Authentication fails  -> app stays on lock screen
 ```
 
-### Layer 2 — Database Encryption (SQLCipher)
-- SQLite `.db` file is fully encrypted at rest
-- Decrypted only in memory during app session
-- Even if someone extracts the `.db` file from device storage, it is unreadable without the key
-- Encryption key derived from device-specific identifier
-
-### Layer 3 — Backup Encryption
-- JSON backup file encrypted with user-set password
-- Without the password, the backup file is unreadable
-- User must remember this password for restoration
+- App lock is mandatory — no toggle to disable
+- Lock screen is the only public screen
+- Every other screen requires authentication
+- No database encryption (removed)
+- No backup file encryption (plain JSON)
 
 ---
 
 ## 7. Distribution Model
 
 ```
-Developer builds APK
-        ↓
-APK shared via WhatsApp / Google Drive / direct install
-        ↓
+Developer builds APK (EAS Build — cloud build)
+        |
+        v
+APK downloaded and shared via WhatsApp / Drive
+        |
+        v
 User installs on Android device
-        ↓
-App creates its own isolated SQLite database on that device
-        ↓
-Person A's phone  →  Person A's database (private)
-Person B's phone  →  Person B's database (private)
+        |
+        v
+App creates its own isolated SQLite DB in app private storage
+        |
+        v
+Person A's phone  ->  Person A's private database
+Person B's phone  ->  Person B's private database
                   (zero connection between them)
 ```
 
 - No server involvement at any point
-- Naturally multi-user across devices — each user is isolated
-- Installing same APK on multiple phones = fully independent instances
+- Same APK on multiple phones = fully independent isolated instances
+- App private storage is not accessible by other apps without root
 
 ---
 
-## 8. Folder Structure
+## 8. Storage Locations
+
+| Data | Location | Accessible By |
+|---|---|---|
+| SQLite .db file | App internal private storage (/data/data/com.spendvault/databases/) | App only |
+| JSON backup | Device Downloads folder (/Downloads/expense-backup.json) | User, file managers, sharing |
+
+The SQLite database lives in the app's private internal storage — invisible to other apps and file managers. The JSON backup is intentionally saved to the Downloads folder so the user can access, share, and manage it freely.
+
+---
+
+## 9. Folder Structure
 
 ```
-expense-tracker/
-├── app/                          # Expo Router screens
+SpendVault/
+├── app/                            # Expo Router screens
+│   ├── index.tsx                   # Lock / Auth screen (public)
+│   ├── onboarding/
+│   │   ├── splash.tsx
+│   │   ├── profile.tsx
+│   │   ├── security.tsx
+│   │   ├── sms-permission.tsx
+│   │   └── all-set.tsx
 │   ├── (tabs)/
-│   │   ├── index.tsx             # Dashboard
-│   │   ├── transactions.tsx      # Transactions list
-│   │   ├── budget.tsx            # Budget screen
-│   │   ├── goals.tsx             # Savings goals
-│   │   └── settings.tsx          # Settings
-│   └── _layout.tsx               # Root layout with auth gate
+│   │   ├── index.tsx               # Tab 1 — Home (Dashboard)
+│   │   ├── transactions.tsx        # Tab 2 — Transactions
+│   │   ├── budget-goals.tsx        # Tab 3 — Budget & Goals
+│   │   └── profile.tsx             # Tab 4 — Profile
+│   ├── settings.tsx                # Settings screen (from Profile tab)
+│   └── _layout.tsx                 # Root layout with auth gate
 │
-├── components/                   # Reusable UI components
+├── components/
 │   ├── TransactionCard.tsx
 │   ├── AddTransactionModal.tsx
+│   ├── EditTransactionModal.tsx
+│   ├── SMSTransactionModal.tsx
 │   ├── BudgetItem.tsx
-│   └── GoalCard.tsx
+│   ├── GoalCard.tsx
+│   └── DeleteConfirmAlert.tsx
 │
-├── db/                           # Database layer
-│   ├── schema.ts                 # Drizzle schema definitions
-│   ├── migrations/               # Auto-generated migrations
+├── db/
+│   ├── schema.ts                   # Drizzle schema — all 6 tables
+│   ├── migrations/                 # Auto-generated Drizzle migrations
 │   ├── queries/
-│   │   ├── transactions.ts
+│   │   ├── transactions.ts         # create, edit, delete, filter queries
 │   │   ├── budgets.ts
 │   │   ├── goals.ts
+│   │   ├── userProfile.ts
 │   │   └── config.ts
-│   └── index.ts                  # DB connection setup
+│   └── index.ts                    # DB connection setup
 │
-├── services/                     # Business logic
-│   ├── smsParser.ts              # SMS regex + parsing logic
-│   ├── backupService.ts          # Backup and restore logic
-│   ├── authService.ts            # Biometric / PIN auth
-│   └── notificationService.ts   # Budget alerts, reminders
+├── services/
+│   ├── smsParser.ts                # SMS regex engine
+│   ├── backupService.ts            # Backup and restore logic + validation
+│   ├── authService.ts              # Biometric / PIN auth
+│   └── notificationService.ts     # Budget alerts, SMS detection alerts
 │
-├── hooks/                        # Custom React hooks
+├── hooks/
 │   ├── useTransactions.ts
 │   ├── useBudget.ts
+│   ├── useGoals.ts
 │   └── useBackup.ts
 │
 ├── constants/
-│   ├── categories.ts             # Default categories
-│   ├── smsPatterns.ts            # Bank SMS regex patterns
-│   └── natures.ts                # Transaction nature definitions
+│   ├── categories.ts               # Default seeded categories
+│   ├── smsPatterns.ts              # Bank SMS regex patterns
+│   └── natures.ts                  # Transaction nature definitions
 │
 └── utils/
-    ├── currency.ts               # ₹ formatting
-    ├── date.ts                   # Date helpers
-    └── encryption.ts             # Backup encryption helpers
+    ├── currency.ts                 # Rupee formatting
+    ├── date.ts                     # Date and time helpers
+    └── validation.ts               # Backup JSON validation logic
 ```
 
 ---
 
-## 9. Key Technical Decisions
+## 10. Key Technical Decisions
 
 | Decision | Choice | Reason |
 |---|---|---|
-| Local vs Cloud DB | Local SQLite | Offline-first, single user, no infra |
-| ORM | Drizzle | Type-safe, migrations, TypeScript native |
-| Backup format | JSON | Human-readable, easy to restore, universal |
-| Backup frequency | Daily + background | Balance between data safety and performance |
-| Backup on every write | ❌ No | Performance concern at scale |
-| iOS support | ❌ No | READ_SMS not available on iOS |
-| Auth system | ❌ No | Single user, no login needed |
-| Charts / analytics | ❌ No | Out of product scope |
-| Reports | ❌ No | Out of product scope |
+| Local vs Cloud DB | Local SQLite | Offline-first, single user, no infra needed |
+| ORM | Drizzle ORM | Type-safe, migrations, TypeScript native |
+| Styling | NativeWind (Tailwind) | Fast UI development, utility-first |
+| Backup format | Plain JSON | Human-readable, easy to restore, universal |
+| Backup trigger | 12:00 AM daily + manual | Reliable, predictable, not performance-heavy |
+| Backup on every write | No | Performance concern at scale |
+| DB encryption | No (SQLCipher removed) | Unnecessary for single-user local app |
+| Backup encryption | No (plain JSON) | Simplicity; user manages file security |
+| App lock | Mandatory, always on | Security without complexity |
+| iOS support | No | READ_SMS not available on iOS |
+| Charts / analytics | No | Out of product scope |
+| Reports | No | Out of product scope |
+| Tab count | 4 tabs | Home, Transactions, Budget+Goals, Profile |

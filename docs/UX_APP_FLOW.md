@@ -1,5 +1,5 @@
 # UX App Flow
-## Comprehensive Personal Finance Tracker — Android App
+## SpendVault — Comprehensive Personal Finance Tracker — Android App
 
 ---
 
@@ -7,17 +7,22 @@
 
 ```
 App Launch
-    ↓
+    |
+    v
 First time?
-  Yes → Onboarding Flow
-  No  → App Lock Flow
-            ↓
-        Main App
-    ┌───────────┬────────────┬──────────┬──────────┐
- Dashboard Transactions  Budget    Goals   Settings
-    └───────────┴────────────┴──────────┴──────────┘
-                        ↑
-                  FAB [+] (always visible)
+  Yes -> Onboarding Flow (5 screens)
+  No  -> App Lock Screen
+              |
+              v
+         Authentication
+              |
+              v
+         Main App (4 Tabs)
+    +--------+----------+---------+
+  Home  Transactions  Budget+Goals  Profile
+    +--------+----------+---------+
+                  |
+            FAB [+] (Home, Transactions, Budget+Goals tabs)
 ```
 
 ---
@@ -27,77 +32,75 @@ First time?
 Triggered once — when app is opened for the very first time.
 
 ```
-Screen 1 — Welcome
-──────────────────
-[App logo + name]
-"Your personal finance companion"
+Screen 1 — Splash Screen
+─────────────────────────
+App logo + name "SpendVault"
+Tagline: "Your complete money story"
+Auto-transitions to Screen 2 after 2 seconds
 
-→ CTA: "Get Started"
-   ↓
+Screen 2 — Profile Setup
+──────────────────────────
+[Avatar picker — tap to set photo, or skip for auto initials]
 
-Screen 2 — Set Up Your Profile
-──────────────────────────────
-[Avatar picker — tap to set photo, or skip for initials]
-Input: "Your name" (required)
-Input: "Monthly salary amount" (optional, can set later)
-Input: "Salary credited on day" (1–31, optional)
+Input: Username (required)         "What should we call you?"
+Input: Date of Birth (optional)    date picker
+Input: Occupation (optional)       "e.g. Software Engineer"
 
-→ CTA: "Continue"
-   ↓
+CTA: "Continue"
+    |
+    v
 
-Screen 3 — Set Backup Password
-───────────────────────────────
-"Set a password to encrypt your backups"
-Input: Password
-Input: Confirm Password
-[i] "You'll need this to restore your data on a new phone"
-
-→ CTA: "Continue"
-   ↓
-
-Screen 4 — Enable App Lock
+Screen 3 — Security Setup
 ───────────────────────────
 [Fingerprint icon]
-"Secure your app with biometric lock"
-"No one else can access your data"
+"Secure SpendVault"
+"App lock is required — your data stays private"
 
-→ CTA: "Enable App Lock"     → triggers biometric enrollment
-→ Link: "Skip for now"
-   ↓
+CTA: "Set Up Biometric"   -> triggers biometric enrollment
+  If biometric unavailable or skipped:
+     -> PIN setup screen (4-6 digit PIN, confirm PIN)
 
-Screen 5 — SMS Permission
+App lock is mandatory — user cannot skip this screen entirely.
+They must set up either biometric or PIN.
+    |
+    v
+
+Screen 4 — SMS Permission
 ──────────────────────────
 [SMS icon]
 "Auto-detect your transactions"
-"We read your bank SMS to log transactions automatically"
+"SpendVault reads your bank SMS to log transactions automatically"
 "Your messages never leave your device"
 
-→ CTA: "Allow SMS Access"    → triggers READ_SMS system prompt
-→ Link: "Skip, I'll add manually"
-   ↓
+CTA: "Allow SMS Access"   -> triggers READ_SMS system permission prompt
+Link: "Skip for now"      -> manual-only mode (can enable later in Settings)
+    |
+    v
 
-Screen 6 — All Set
+Screen 5 — All Set
 ───────────────────
 [Success checkmark animation]
-"You're all set, [Name]!"
-"Start by adding your first transaction"
+"You're all set, [Username]!"
+"Start tracking your money"
 
-→ CTA: "Go to Dashboard"
-   ↓
+CTA: "Go to Home"
+    |
+    v
 
-[Main App — Dashboard Tab]
+Tab 1 — Home (Dashboard)
 ```
 
-### Onboarding Data Saved to Config
+### Data Saved During Onboarding
 ```
-user_name           → from screen 2
-user_avatar         → from screen 2 (file path or null)
-salary_amount       → from screen 2
-salary_date         → from screen 2
-backup_password     → from screen 3 (hashed)
-lock_enabled        → from screen 4
-sms_permission      → from screen 5
-onboarding_complete → true
+user_profile table:
+  username       -> from Screen 2
+  avatar         -> from Screen 2 (local file path or null)
+  date_of_birth  -> from Screen 2 (optional)
+  occupation     -> from Screen 2 (optional)
+
+config table:
+  onboarding_complete    -> true
+  sms_permission_granted -> true or false
 ```
 
 ---
@@ -106,164 +109,166 @@ onboarding_complete → true
 
 ```
 App opens
-    ↓
-load config: lock_enabled?
-    ↓
-  YES → App Lock Screen
-        [Fingerprint icon]
-        "Tap to unlock"
-        Biometric prompt fires automatically
-            ↓
-        Success → Main App
-        Fail    → "Try again" or "Use PIN"
-                      ↓
-                  PIN entry (4–6 digit)
-                      ↓
-                  Correct → Main App
-                  Wrong   → "Incorrect PIN" shake + retry
+    |
+    v
+Is onboarding complete?
+  No  -> Onboarding Screen 1
+  Yes -> App Lock Screen
 
-  NO  → Main App directly
-    ↓
-Check: last_backup_at > 24 hours ago?
-    → Yes → silent background backup triggered
-    → No  → nothing
+App Lock Screen
+  [SpendVault logo]
+  [Fingerprint icon]
+  "Tap to unlock"
+  Biometric prompt fires automatically
+    |
+    v
+  Biometric success -> Main App
+  Biometric fail    -> "Try again" or "Use PIN"
+                         |
+                         v
+                    PIN entry (4-6 digit)
+                         |
+                    Correct -> Main App
+                    Wrong   -> shake animation + "Incorrect PIN" + retry
 
-Check: unconfirmed SMS transactions?
-    → Yes → badge on Transactions tab
-    → No  → nothing
-
-Check: today = salary_date?
-    → Yes → push notification "Did your salary get credited?"
-    → No  → nothing
+Main App loads:
+  Check: today's date at 12:00 AM -> daily backup fires in background
+  Check: unconfirmed SMS transactions?
+    Yes -> badge shown on Transactions tab
+    No  -> nothing
 ```
 
 ---
 
-## 3. Dashboard Screen
+## 3. Home Screen (Dashboard — Tab 1)
 
 ```
 Arrival animation:
-  Screen fades in + slides up 20px
-  Cards appear with stagger (50ms delay each)
+  Screen fades in + slides up
+  Cards appear with stagger delay
   Numbers count up from 0 to actual value (800ms)
 
-Layout (top to bottom):
-──────────────────────────────────────────────
+Layout top to bottom:
+───────────────────────────────────────────────
 
 [Header]
-  "Good morning, Fawzaan 👋"     [Avatar]
+  "Good morning, [Username]"       [Avatar circle]
   June 2026
 
-[This Month Summary Card]
-  Income    ₹52,000  (green)
-  Expenses  ₹31,400  (red)
-  ─────────────────────────
-  Savings   ₹20,600  (39%)
+[This Month Card]
+  Income      52,000  (green)
+  Expenses    31,400  (red)
+  ────────────────────────────
+  Savings     20,600  (39%)
 
-[Lent · Borrowed row]
-  [Lent ₹2,500 pending]   [Borrowed ₹1,000 pending]
+[Two smaller cards side by side]
+  [Lent pending: 2,500]    [Borrowed pending: 1,000]
 
-[Recent Transactions]
+[Recent Transactions — last 10]
   Section header: "RECENT"
-  Last 5 transactions as list items
-  "See all →" link → navigates to Transactions tab
+  Transaction list items
+  "See all" link -> Transactions tab
 
 User Actions:
-  Tap transaction item  → open Transaction Detail modal
-  Tap "See all"         → Transactions tab
-  Tap avatar            → Profile screen (in Settings)
-  Pull to refresh       → recalculate totals
+  Tap transaction item   -> Transaction Detail Modal
+  Tap "See all"          -> Transactions tab
+  Tap avatar             -> Profile tab
+  Pull to refresh        -> recalculate totals
+  Tap FAB [+]            -> Add Transaction Modal
 ```
 
 ---
 
-## 4. Transactions Screen
+## 4. Transactions Screen (Tab 2)
 
 ```
 Layout:
-──────────────────────────────────────────────
+───────────────────────────────────────────────
 [Header]
-  "Transactions"         [Filter icon]  [Search icon]
+  "Transactions"        [Filter icon]  [Search icon]
 
 [Month/Year Selector]
-  ← June 2026 →
-  Swipe left/right or tap arrows to change month
+  <- June 2026 ->
+  Tap arrows or swipe to change month
 
 [Summary Row]
-  Income ₹52,000   Expenses ₹31,400
+  Income 52,000     Expenses 31,400
 
-[Filter Bar] (horizontal scroll, pill chips)
-  All · Debit · Credit · Cash · UPI · Card
+[Filter Chips — horizontal scroll]
+  All | Debit | Credit | Cash | UPI | Card | Bank Transfer
 
 [Transaction List — grouped by date]
   TODAY
-  ┌────────────────────────────────────┐
-  │ 🍔 Swiggy             -₹450       │
-  │ Food · UPI · 2:30 PM              │
-  └────────────────────────────────────┘
+  +────────────────────────────────────+
+  | food icon  Swiggy        -450      |
+  | Food · UPI · 2:30 PM               |
+  +────────────────────────────────────+
 
   YESTERDAY
-  ┌────────────────────────────────────┐
-  │ 💰 Managix Salary    +₹52,000     │
-  │ Income · Bank · 5 Jun             │
-  └────────────────────────────────────┘
+  +────────────────────────────────────+
+  | money icon  Managix    +52,000     |
+  | Income · Bank · 5 Jun              |
+  +────────────────────────────────────+
 
-  [Load more on scroll]
+  [Load all on scroll]
 
 User Actions:
-  Tap transaction       → Transaction Detail Modal
-  Swipe left on item    → reveal Delete button (red)
-    Tap Delete          → confirmation "Delete this transaction?"
-                          Yes → spring remove from list
-                          No  → snap back
-  Tap filter icon       → Filter Bottom Sheet
-  Tap search icon       → search bar appears inline
-  Type in search        → live filter by who/what/note
-  Tap month arrows      → animate month change, reload list
+  Tap item               -> Transaction Detail Modal
+  Swipe left on item     -> red Delete button revealed
+    Tap Delete           -> Confirmation alert:
+                           "Delete this transaction? This cannot be undone."
+                           Confirm -> item removed with spring animation
+                           Cancel  -> snaps back
+  Tap filter icon        -> Filter Bottom Sheet
+  Tap search icon        -> search bar appears inline
+  Type in search         -> live filter by who / what / note
+  Tap month arrows       -> animate month change, reload list
+  Tap FAB [+]            -> Add Transaction Modal
+  Badge on tab icon      -> unconfirmed SMS transactions pending
 ```
 
 ### Filter Bottom Sheet
 ```
 Opens with spring animation from bottom
+Drag handle at top
 
-Filters available:
-  Type        : All | Debit | Credit
-  Nature      : All | Income | Expense | Lent | Borrowed |
-                Repayment | Pass-through
-  Category    : [grid of category pills]
-  Method      : All | Cash | UPI | Card | Bank Transfer
-  Paid For    : All | Myself | [person names from data]
-  Year        : dropdown
+Filters:
+  Type:    All | Debit | Credit
+  Nature:  All | Income | Expense | Lent | Borrowed | Repayment | Pass-through
+  Category: grid of category pills
+  Method:  All | Cash | UPI | Card | Bank Transfer
+  Paid For: All | Myself | [names from data]
+  Year:    dropdown
 
 [Clear All]    [Apply Filters]
 
-Apply → closes sheet, list updates with animation
+Apply -> sheet closes, list filters with animation
 ```
 
 ### Transaction Detail Modal
 ```
 Opens as bottom sheet
 
-[Type badge] [Nature badge]        [Edit icon]
+[Type badge]  [Nature badge]          [Edit icon]
 
 Amount
-₹450 (red for debit / green for credit)
+450  (red for debit / green for credit)
 
-──────────────────────────────────
-Who          Swiggy
-What         Dinner order
-When         27 Jun 2026, 2:30 PM
-Where        Online
-Why          Hungry at work
-How          UPI
-Category     Food
-Paid For     Myself
-Note         Butter chicken + naan
-UPI Ref      412345678901
-Source       SMS (auto-parsed)
-──────────────────────────────────
+──────────────────────────────────────
+Who           Swiggy
+What          Dinner order
+When          27 Jun 2026, 2:30 PM
+Where         Online
+Why           Hungry at work
+How           UPI
+Category      Food
+Paid For      Myself
+Note          Butter chicken + naan
+UPI Ref       412345678901
+Source        SMS auto-parsed
 
-[Edit Transaction]   [Delete]
+──────────────────────────────────────
+[Edit Transaction]          [Delete]
 ```
 
 ---
@@ -272,230 +277,216 @@ Source       SMS (auto-parsed)
 
 ```
 Tap FAB [+]
-    ↓
-Add Transaction Bottom Sheet springs up
+    |
+    v
+Add Transaction Bottom Sheet springs up from bottom
 
-Step 1 — Amount & Type
-──────────────────────
-[DEBIT]    [CREDIT]     ← toggle, default Debit
-            (tap to switch, animates color)
+Step 1 — Type Selection
+  [DEBIT]    [CREDIT]    <- toggle, tap to switch
+  Debit selected by default
 
-    ₹ [    0    ]       ← large centered amount input
-                          auto-focused, numpad opens
+Step 2 — Amount
+  Rupee symbol [   0   ]
+  Large centered input, numpad auto-opens, auto-focused
 
-→ Continue (or tap next field)
+Step 3 — Nature (scrollable pills based on type)
+  If Debit:   Expense | Lent | Repayment Made | Pass-through
+  If Credit:  Income  | Borrowed | Repayment Received | Pass-through
 
-Step 2 — Nature
-────────────────
-(shown as horizontal scroll pills based on type selected)
+Step 4 — Full Story Form
+  Who *         text input     "Person or merchant name"
+  What *        text input     "What was this for?"
+  Category *    grid picker    category icons and names
+  How *         pill select    Cash | UPI | Card | Bank Transfer
+  Date/Time     date picker    default: now
+  Where         text input     optional
+  Why           text input     optional
+  Paid For      text input     optional, null = myself
+  Note          text input     optional
 
-If Debit:   Expense | Lent | Repayment Made | Pass-through
-If Credit:  Income  | Borrowed | Repayment Received | Pass-through
+  * required fields
 
-→ Tap one to select
-
-Step 3 — Full Story Form
-─────────────────────────
-Who *         [text input]   "Person or merchant name"
-What *        [text input]   "What was this for?"
-Category *    [grid picker]  category icons
-How *         [pill select]  Cash | UPI | Card | Bank Transfer
-Date/Time     [date picker]  default: now
-Where         [text input]   optional
-Why           [text input]   optional
-Paid For      [text input]   optional (null = myself)
-Note          [text input]   optional
-
-* required fields
-
-[Save Transaction]  ← primary button, full width
+[Save Transaction]  <- primary button, full width
 
 Validation:
-  Missing required field → field border turns red + shake
-  Amount = 0            → "Please enter an amount"
+  Amount = 0 or empty    -> shake + red border + "Enter an amount"
+  Required field empty   -> shake + red border + "This field is required"
 
 On Save:
-  Loading state on button (0.3s)
-      ↓
-  Write to SQLite
-      ↓
-  Trigger background backup check
-      ↓
+  Button shows loading briefly
+      |
+  Write to SQLite (INSERT)
+      |
+  Trigger backup check (is it past midnight? -> if not, skip)
+      |
   Bottom sheet slides down
-      ↓
-  New transaction springs into list
-      ↓
+      |
+  New card springs into transaction list
+      |
   Dashboard totals update
-      ↓
-  Toast: "Transaction saved ✓"
+      |
+  Toast: "Transaction saved"
 ```
 
 ---
 
-## 6. SMS Auto-Parse Flow
+## 6. Edit Transaction Flow
 
 ```
-Bank SMS received
-    ↓
+Transaction Detail Modal -> tap Edit icon
+    |
+    v
+Modal transforms to edit mode
+Same form as Add, pre-filled with existing data
+All fields editable
+
+[Save Changes]    [Cancel]
+
+Save    -> UPDATE in SQLite -> modal shows updated data -> toast "Updated"
+Cancel  -> revert to detail view, no changes
+```
+
+---
+
+## 7. Delete Transaction Flow
+
+```
+Option A — from Transaction List:
+  Swipe left on transaction card
+      |
+  Red "Delete" button revealed
+      |
+  Tap Delete
+      |
+  Alert: "Delete this transaction? This cannot be undone."
+  Confirm -> DELETE from SQLite -> spring remove from list
+  Cancel  -> card snaps back
+
+Option B — from Transaction Detail Modal:
+  Tap [Delete] button at bottom
+      |
+  Same alert shown
+  Confirm -> DELETE -> modal closes -> removed from list
+```
+
+---
+
+## 8. SMS Auto-Parse Flow
+
+```
+Bank SMS received on phone
+    |
+    v
 react-native-get-sms-android intercepts
-    ↓
-Is it a known bank sender? (check against pattern list)
-    ↓
-  NO  → ignore
-  YES → parse SMS with regex
-          ↓
-        Extract: amount, type, upi_ref, date
-          ↓
-        Create unconfirmed transaction in DB
-        (confirmed = 0, source = 'sms')
-          ↓
-        Push notification:
-        "₹450 debited detected — tap to complete"
-          ↓
+    |
+    v
+Known bank sender? -> No -> ignore
+                  -> Yes -> parse with regex
+                              |
+                              v
+                         Extract: amount, type, upi_ref, datetime
+                              |
+                              v
+                         INSERT unconfirmed transaction (confirmed = 0)
+                              |
+                              v
+                         Push notification:
+                         "500 debited detected — tap to complete"
 
 User taps notification
-    ↓
-App opens → Add Transaction Bottom Sheet
+    |
+    v
+App opens (auth required first if locked)
+    |
+    v
+SMS Transaction Modal opens:
   Pre-filled:
-    Amount    → from SMS
-    Type      → from SMS (debit/credit)
-    Date      → from SMS timestamp
-    UPI Ref   → from SMS
-    Source    → 'sms' (shown as badge)
+    Amount   -> from SMS
+    Type     -> from SMS
+    Date     -> from SMS
+    UPI Ref  -> from SMS
+    Source   -> "sms" badge shown
 
   User fills:
-    Who, What, Category, Nature, Where, Why, Paid For, Note
-    ↓
-  Tap "Save Transaction"
-    ↓
+    Who, What, Nature, Category, Where, Why, Paid For, Note
+
+  [Save Transaction]
+    |
   Transaction confirmed (confirmed = 1)
-    ↓
+    |
   Notification dismissed
 
 If user ignores notification:
-  Transaction stays as unconfirmed in DB
+  Transaction stays as unconfirmed
   Badge count shown on Transactions tab
-  At top of Transactions list: "2 pending SMS transactions"
-  Tap → opens each one for completion
+  Banner at top of list: "2 pending SMS transactions — tap to complete"
 ```
 
 ---
 
-## 7. Edit Transaction Flow
+## 9. Budget & Goals Screen (Tab 3)
 
 ```
-Transaction Detail Modal → tap [Edit icon]
-    ↓
-Modal transforms into edit mode
-(same form as Add, but pre-filled with existing data)
+Layout — two sections on one screen, scrollable:
+───────────────────────────────────────────────
 
-All fields editable
-    ↓
-[Save Changes]  [Cancel]
-    ↓
-Save → update DB → modal shows updated data
-Cancel → revert to detail view, no changes
-```
+Section Header: "BUDGET"
+[+ Add Budget]
 
----
+Budget Cards:
++──────────────────────────────────────────+
+|  Food                                    |
+|  8,200 spent of 10,000 limit             |
+|  1,800 remaining               82%       |  <- amber warning
++──────────────────────────────────────────+
 
-## 8. Budget Screen
++──────────────────────────────────────────+
+|  Shopping                                |
+|  6,200 spent of 5,000 limit              |
+|  1,200 over budget             124%      |  <- red exceeded
++──────────────────────────────────────────+
 
-```
-Layout:
-──────────────────────────────────────────────
-[Header]
-  "Budget"               [+ Add Budget]
-  June 2026 (month selector)
+─────────────────────────────────────────────
 
-[Budget Cards — one per category with a budget set]
+Section Header: "GOALS"
+[+ Add Goal]
 
-┌───────────────────────────────────────────┐
-│  🍔 Food                                  │
-│  ₹8,200 spent of ₹10,000 limit           │
-│  ₹1,800 remaining                 82%    │
-│  [████████████████░░░░] ← amber (>80%)   │
-└───────────────────────────────────────────┘
-
-┌───────────────────────────────────────────┐
-│  🚗 Transport                             │
-│  ₹3,100 spent of ₹5,000 limit            │
-│  ₹1,900 remaining                 62%    │
-│  [████████████░░░░░░░░] ← green (<80%)   │
-└───────────────────────────────────────────┘
-
-┌───────────────────────────────────────────┐
-│  🛍️ Shopping                              │
-│  ₹6,200 spent of ₹5,000 limit            │
-│  ₹1,200 over budget               124%   │  ← red card border
-│  [████████████████████] ← red (exceeded) │
-└───────────────────────────────────────────┘
-
-[+ Add Budget for another category]
+Goal Cards:
++──────────────────────────────────────────+
+|  Save for Laptop                         |
+|  Target    1,00,000                      |
+|  Saved        35,000                     |
+|  Remaining    65,000           35%       |
+|  Deadline  Dec 2026                      |
+|  [+ Add to Savings]                      |
++──────────────────────────────────────────+
 
 User Actions:
-  Tap card         → Budget Detail (transactions in this category this month)
-  Tap [+ Add]      → Add Budget Bottom Sheet
-  Tap [Edit]       → Edit budget limit inline
-  Long press card  → Edit / Delete options
+  Tap budget card        -> Budget Detail (transactions in that category this month)
+  Tap [+ Add Budget]     -> Add Budget Bottom Sheet
+  Long press budget      -> Edit / Delete options
+  Tap goal card          -> Goal Detail Modal
+  Tap [+ Add Goal]       -> Add Goal Bottom Sheet
+  Tap [+ Add to Savings] -> Update Saved Amount Modal
+  Long press goal        -> Edit / Mark Complete / Delete options
+  Tap FAB [+]            -> Add Transaction Modal
 ```
 
 ### Add/Edit Budget Bottom Sheet
 ```
-Category    [grid picker]
-Month       [dropdown: Jan–Dec]
-Year        [dropdown]
-Limit (₹)   [number input]
+Category     grid picker
+Month        dropdown Jan-Dec
+Year         dropdown
+Limit        number input
 
 [Save Budget]
 ```
 
-### Budget Alert Notifications
+### Add/Edit Goal Bottom Sheet
 ```
-Trigger 1: spending crosses 80% of limit
-  Notification: "⚠️ Food budget at 82% — ₹1,800 left"
-
-Trigger 2: spending exceeds limit
-  Notification: "🔴 Shopping budget exceeded by ₹1,200"
-  In-app: card border turns red, shake animation
-```
-
----
-
-## 9. Savings Goals Screen
-
-```
-Layout:
-──────────────────────────────────────────────
-[Header]
-  "Goals"               [+ New Goal]
-
-[Active Goals]
-
-┌───────────────────────────────────────────┐
-│  🎯 Save for Laptop                        │
-│  Target    ₹1,00,000                      │
-│  Saved     ₹35,000                        │
-│  Remaining ₹65,000              35%       │
-│  Deadline  Dec 2026                       │
-│  [+ Add to Savings]                       │
-└───────────────────────────────────────────┘
-
-[Completed Goals] (collapsed section)
-  Tap to expand → shows completed goals greyed out
-
-User Actions:
-  Tap [+ New Goal]      → Add Goal Bottom Sheet
-  Tap goal card         → Goal Detail modal
-  Tap [+ Add Savings]   → Update Saved Amount modal
-  Long press            → Edit / Delete / Mark Complete
-```
-
-### Add Goal Bottom Sheet
-```
-Title         [text input]   "What are you saving for?"
-Target (₹)    [number input]
-Deadline      [date picker]  optional
+Title        text input    "What are you saving for?"
+Target       number input
+Deadline     date picker   optional
 
 [Create Goal]
 ```
@@ -503,197 +494,243 @@ Deadline      [date picker]  optional
 ### Update Saved Amount Modal
 ```
 "How much have you added to this goal?"
-Current saved: ₹35,000
-
-[+ Add Amount]
-  Input: ₹ [amount]
-  New total will be: ₹XX,XXX
+Current saved: 35,000
+Input: amount to add
+New total preview: XX,XXX
 
 [Update]
 ```
 
+### Budget Alert Notifications
+```
+At 80% of limit:
+  Notification: "Food budget at 82% — 1,800 remaining this month"
+
+At 100%+ of limit:
+  Notification: "Shopping budget exceeded by 1,200"
+  In-app: card border turns red, number turns red
+```
+
 ---
 
-## 10. Settings Screen
+## 10. Profile Screen (Tab 4)
 
 ```
 Layout:
+───────────────────────────────────────────────
+[Large Avatar — photo or initials circle]
+[Username]
+[Occupation]
+
 ──────────────────────────────────────────────
-[Header]
-  "Settings"
+Real-time clock:  Saturday, 27 June 2026  2:45 PM
+(updates every minute)
+
+──────────────────────────────────────────────
+[This Month Card]
+  Last Salary       52,000  (credited 5 Jun)
+  Total Budget      20,000
+  Total Spent       15,200
+  Remaining          4,800
+
+──────────────────────────────────────────────
+[Settings Button]  -> navigates to Settings Screen
+
+User Actions:
+  Tap avatar         -> open image picker to change photo
+  Tap Settings btn   -> Settings Screen
+```
+
+---
+
+## 11. Settings Screen (accessed from Profile tab)
+
+```
+Layout:
+───────────────────────────────────────────────
+[Back arrow]  "Settings"
 
 [Profile Section]
-┌───────────────────────────────────────────┐
-│  [Avatar]  Fawzaan                        │
-│            Tap to edit profile            │
-└───────────────────────────────────────────┘
+  Avatar            [tap to change]
+  Username          [editable field]
+  Date of Birth     [date picker]
+  Occupation        [editable field]
+  [Save Profile]
 
 [Preferences]
-  Salary Date         5th of every month  →
-  Salary Amount       ₹52,000             →
-  Currency            ₹ (Indian Rupee)    →
-
-[Categories]
-  Manage Categories                        →
-  (add, edit, reorder, delete custom ones)
+  Currency          Indian Rupee (non-editable for now)
 
 [Security]
-  App Lock            [toggle ON/OFF]
-  Change Backup Password                   →
+  App Lock          Biometric / PIN  (mandatory — shows info only, no toggle)
+
+[Categories]
+  Manage Categories ->  (opens category management screen)
 
 [Backup & Restore]
-  Last Backup         Today, 10:00 AM
-  Backup Now                               →
-  Share Backup                             →
-  Restore from Backup                      →
+  Last Backup       Today, 12:00 AM
+  Backup Now        [tap to backup manually]
+  Share Backup      [tap to open share sheet]
+  Restore from Backup [tap to restore]
 
-[About]
-  App Version         1.0.0
+Category Management Screen:
+  Default categories listed (editable icon/color, not deletable)
+  User categories listed (fully editable and deletable)
+  [+ Add Category] button
+
+  Add/Edit Category Bottom Sheet:
+    Name    text input
+    Icon    emoji picker grid
+    Color   color swatch picker
+    Type    Expense | Income | Both
+    [Save Category]
 ```
 
-### Edit Profile Screen
+---
+
+## 12. Backup Flow (Auto at 12:00 AM)
+
 ```
-[Avatar — tap to change photo or clear]
-Name          [text input, pre-filled]
-              [Save]
-```
-
-### Manage Categories Screen
-```
-[Header] "Categories"    [+ Add Category]
-
-Default Categories (cannot delete, can edit icon/color):
-  🍔 Food         [edit]
-  🚗 Transport    [edit]
-  ...
-
-My Categories:
-  [user-created categories, can delete]
-  + Add Category
-
-Add/Edit Category Bottom Sheet:
-  Name    [text input]
-  Icon    [emoji picker grid]
-  Color   [color swatch picker]
-  Type    Expense | Income | Both
-
-  [Save Category]
+expo-background-fetch fires at 12:00 AM
+    |
+    v
+Fetch all records: user_profile, transactions, categories,
+                   budgets, savings_goals, config
+    |
+    v
+Serialize to plain JSON
+    |
+    v
+Write to /Downloads/expense-backup.json (overwrite)
+    |
+    v
+Update config: last_backup_at = now()
+    |
+    v
+Silent — no UI shown (user is likely asleep)
 ```
 
-### Backup Now Flow
+### Manual Backup Flow
 ```
-Tap "Backup Now"
-    ↓
-Loading indicator
-    ↓
-Fetch all DB data
-    ↓
-Serialize + encrypt with backup password
-    ↓
-Write to /Downloads/expense-backup.json
-    ↓
-Toast: "Backup saved to Downloads ✓"
-    ↓
-Update "Last Backup" display
+Tap "Backup Now" in Settings
+    |
+    v
+Same backup process runs
+    |
+    v
+Toast: "Backup saved to Downloads"
+    |
+    v
+"Last Backup" updates in Settings
 ```
 
 ### Share Backup Flow
 ```
 Tap "Share Backup"
-    ↓
-Backup Now executes first (ensure latest)
-    ↓
+    |
+    v
+Backup runs first (ensure latest)
+    |
+    v
 expo-sharing opens native Android share sheet
-    ↓
+    |
+    v
 User picks: Google Drive / WhatsApp / Email / etc.
-    ↓
-File shared
 ```
 
-### Restore Flow
+---
+
+## 13. Restore Flow
+
 ```
 Tap "Restore from Backup"
-    ↓
-Alert: "This will replace ALL existing data.
-        This action cannot be undone. Continue?"
-  Cancel → nothing
-  Continue ↓
-    ↓
+    |
+    v
+Alert: "This will replace ALL your data. This cannot be undone. Continue?"
+  Cancel -> nothing
+  Continue ->
+      |
+      v
 File picker opens
 User selects expense-backup.json
-    ↓
-"Enter your backup password"
-  [password input]
-  [Decrypt & Restore]
-    ↓
-  Wrong password → "Incorrect password. Try again."
-  Correct ↓
-    ↓
-Validate JSON structure
-    ↓
+      |
+      v
+Validation runs:
+  Is valid JSON?                  -> fail: "Invalid file format"
+  Has version key?                -> fail: "Not a SpendVault backup file"
+  Version compatible?             -> fail: "Backup version not supported"
+  Has required data keys?         -> fail: "Backup file is incomplete or corrupted"
+  All pass ->
+      |
+      v
+Confirmation: "Restore will replace all data with backup from [date]. Proceed?"
+      |
+      v
 Clear all tables
-    ↓
-Re-insert all records
-    ↓
-Toast: "Data restored successfully ✓"
-    ↓
-App navigates to Dashboard, reloads
+Re-insert all records from JSON
+      |
+      v
+Toast: "Data restored successfully"
+      |
+      v
+App navigates to Home tab, full reload
 ```
 
 ---
 
-## 11. Navigation Summary
+## 14. Navigation Summary
 
 ```
-Tab 1 — Dashboard
-  → Transaction Detail Modal (tap any recent item)
-  → Transactions Tab (tap "See all")
+App Lock Screen (public)
+    |
+    v (authenticate)
+Tab 1 — Home
+  -> Transaction Detail Modal
+  -> Transactions Tab (see all)
+  -> FAB [+] -> Add Transaction Modal
 
 Tab 2 — Transactions
-  → Transaction Detail Modal (tap item)
-  → Edit Transaction (from detail modal)
-  → Filter Bottom Sheet (tap filter icon)
-  → Search inline (tap search icon)
+  -> Transaction Detail Modal
+     -> Edit Modal
+     -> Delete Alert
+  -> Filter Bottom Sheet
+  -> Inline Search
+  -> SMS Transaction Modal (from notification)
+  -> FAB [+] -> Add Transaction Modal
 
-FAB [+]
-  → Add Transaction Bottom Sheet
+Tab 3 — Budget & Goals
+  -> Add/Edit Budget Bottom Sheet
+  -> Budget Detail Screen
+  -> Add/Edit Goal Bottom Sheet
+  -> Goal Detail Modal
+  -> Update Saved Amount Modal
+  -> FAB [+] -> Add Transaction Modal
 
-Tab 3 — Budget
-  → Add Budget Bottom Sheet
-  → Budget Detail (tap card)
+Tab 4 — Profile
+  -> Settings Screen
+     -> Category Management Screen
+     -> Backup/Restore actions
 
-Tab 4 — Goals
-  → Add Goal Bottom Sheet
-  → Goal Detail Modal
-  → Update Saved Amount Modal
-
-Tab 5 — Settings
-  → Edit Profile Screen
-  → Manage Categories Screen
-  → Change Password Screen
-  → Backup/Restore actions (in-screen)
-
-SMS Notification
-  → Add Transaction Bottom Sheet (pre-filled)
-
-Onboarding (first launch only)
-  → 6 screens → Dashboard
+Onboarding (first launch only — 5 screens -> Home)
 ```
 
 ---
 
-## 12. Error & Edge Case States
+## 15. Error & Edge Case States
 
 | State | UI Response |
 |---|---|
-| No transactions yet | Empty state illustration + "Add your first transaction" CTA |
-| No budget set | "No budgets yet" + "Set a budget" CTA |
-| No goals set | "No goals yet" + "Create a goal" CTA |
-| Delete transaction | Confirmation alert before delete |
-| Restore — wrong password | Inline error under input, shake animation |
+| No transactions yet | Empty state with illustration + "Add your first transaction" CTA |
+| No budget set | Empty state + "Set a budget" CTA |
+| No goals yet | Empty state + "Create your first goal" CTA |
+| Delete transaction | Confirmation alert required before delete |
+| Restore — invalid JSON | Error toast, restore aborted, data untouched |
+| Restore — wrong version | Error toast, restore aborted, data untouched |
+| Restore — incomplete file | Error toast, restore aborted, data untouched |
 | Backup write fails | Toast: "Backup failed. Check storage permissions." |
-| SMS permission denied | Manual-only mode, no auto-parse, prompt in settings |
-| Biometric fails | Fallback to PIN automatically |
-| Amount = 0 on save | Field shake + red border + error text |
+| SMS permission denied | Manual-only mode, prompt to enable in Settings |
+| Biometric fails | Auto fallback to PIN |
+| Amount = 0 on save | Field shake + red border + "Enter an amount" |
 | Required field empty | Field shake + red border + "This field is required" |
-| Unconfirmed SMS transactions | Badge on Transactions tab + banner at top of list |
+| Unconfirmed SMS pending | Badge on Transactions tab + banner at top of list |
+| Budget at 80% | Push notification warning |
+| Budget exceeded | Push notification + red card border in UI |
