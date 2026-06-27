@@ -3,13 +3,14 @@ import * as Sharing from 'expo-sharing';
 import * as DocumentPicker from 'expo-document-picker';
 import { db } from '@/db';
 import { userProfile, transactions, categories, budgets, savingsGoals, config } from '@/db/schema';
-import { setLastBackupAt } from '@/db/queries/config';
+import { setLastBackupAt, getBackupFileUri, setBackupFileUri } from '@/db/queries/config';
 import { now } from '@/utils/date';
 
+const SAF = FileSystem.StorageAccessFramework;
 const BACKUP_VERSION = '1.0';
 const BACKUP_FILENAME = 'spendvault-backup.json';
 
-function backupPath(): string {
+function stagingPath(): string {
   return (FileSystem.documentDirectory ?? '') + BACKUP_FILENAME;
 }
 
@@ -37,19 +38,56 @@ function collectData(): BackupData {
   };
 }
 
-export async function performBackup(): Promise<void> {
-  const json = JSON.stringify(collectData(), null, 2);
-  await FileSystem.writeAsStringAsync(backupPath(), json, {
+async function writeJsonToStaging(json: string): Promise<void> {
+  await FileSystem.writeAsStringAsync(stagingPath(), json, {
     encoding: FileSystem.EncodingType.UTF8,
   });
+}
+
+async function writeSAF(json: string, existingUri: string | null): Promise<string> {
+  if (existingUri) {
+    try {
+      await FileSystem.writeAsStringAsync(existingUri, json, {
+        encoding: FileSystem.EncodingType.UTF8,
+      });
+      return existingUri;
+    } catch {
+      // stored URI is stale — fall through to request new directory
+    }
+  }
+
+  const result = await SAF.requestDirectoryPermissionsAsync();
+  if (!result.granted) throw new Error('cancelled');
+
+  const fileUri = await SAF.createFileAsync(
+    result.directoryUri,
+    BACKUP_FILENAME,
+    'application/json',
+  );
+  await FileSystem.writeAsStringAsync(fileUri, json, {
+    encoding: FileSystem.EncodingType.UTF8,
+  });
+  return fileUri;
+}
+
+export async function performBackup(): Promise<void> {
+  const json = JSON.stringify(collectData(), null, 2);
+  await writeJsonToStaging(json);
+
+  const existingUri = getBackupFileUri();
+  const fileUri = await writeSAF(json, existingUri);
+  setBackupFileUri(fileUri);
   setLastBackupAt(now());
 }
 
 export async function shareBackup(): Promise<void> {
-  await performBackup();
+  const json = JSON.stringify(collectData(), null, 2);
+  await writeJsonToStaging(json);
+  setLastBackupAt(now());
+
   const available = await Sharing.isAvailableAsync();
   if (available) {
-    await Sharing.shareAsync(backupPath(), {
+    await Sharing.shareAsync(stagingPath(), {
       mimeType: 'application/json',
       dialogTitle: 'Share SpendVault Backup',
     });

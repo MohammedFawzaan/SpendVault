@@ -187,6 +187,19 @@ export default function HomeTab() {
                 </View>
               </View>
             </View>
+
+            {stats.topCategory && (
+              <>
+                <View style={styles.divider} />
+                <View style={styles.cardRow}>
+                  <Text style={styles.cardLabel}>Top Category</Text>
+                  <Text style={[styles.cardAmount, { color: Colors.debit }]}>
+                    {stats.topCategory.name}{'  '}
+                    <Text style={styles.cardAmount}>₹{formatINR(stats.topCategory.amount)}</Text>
+                  </Text>
+                </View>
+              </>
+            )}
           </View>
         </StaggerCard>
 

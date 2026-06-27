@@ -60,3 +60,11 @@ export function getPin(): string | null {
 export function setPin(pin: string): void {
   setConfig('pin', pin);
 }
+
+export function getBackupFileUri(): string | null {
+  return getConfig('backup_file_uri');
+}
+
+export function setBackupFileUri(uri: string): void {
+  setConfig('backup_file_uri', uri);
+}

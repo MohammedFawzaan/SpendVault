@@ -16,6 +16,8 @@ import Animated, {
   useAnimatedStyle,
   withSpring,
   withTiming,
+  withDelay,
+  Easing,
 } from 'react-native-reanimated';
 import { ChevronLeft, ChevronRight, X, Lock } from 'lucide-react-native';
 import { router } from 'expo-router';
@@ -26,6 +28,7 @@ import { getProfile, updateProfile } from '@/db/queries/userProfile';
 import { getAuthMethod, getLastBackupAt } from '@/db/queries/config';
 import { performBackup, shareBackup, pickAndValidateBackup, applyRestore } from '@/services/backup';
 import type { UserProfile } from '@/db/schema';
+import { Toast, type ToastType } from '@/components/Toast';
 
 const EMOJI_OPTIONS = ['😀','🧑','👨','👩','🧔','🐱','🦁','🐸','🌟','🔥','💎','🎯'];
 
@@ -124,6 +127,23 @@ function EditProfileSheet({ visible, profile, onClose, onSaved }: {
   );
 }
 
+function StaggerRow({ children, delay }: { children: React.ReactNode; delay: number }) {
+  const opacity    = useSharedValue(0);
+  const translateX = useSharedValue(-12);
+
+  useEffect(() => {
+    opacity.value    = withDelay(delay, withTiming(1, { duration: 280, easing: Easing.out(Easing.quad) }));
+    translateX.value = withDelay(delay, withTiming(0, { duration: 280, easing: Easing.out(Easing.quad) }));
+  }, []);
+
+  const anim = useAnimatedStyle(() => ({
+    opacity: opacity.value,
+    transform: [{ translateX: translateX.value }],
+  }));
+
+  return <Animated.View style={anim}>{children}</Animated.View>;
+}
+
 function SettingsRow({ label, value, onPress, chevron = true }: {
   label: string; value?: string; onPress?: () => void; chevron?: boolean;
 }) {
@@ -143,6 +163,13 @@ export default function SettingsScreen() {
   const [authMethod, setAuthMethod] = useState<string>('—');
   const [editVisible, setEditVisible] = useState(false);
   const [lastBackup, setLastBackup] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ visible: boolean; message: string; type: ToastType }>({
+    visible: false, message: '', type: 'success',
+  });
+
+  function showToast(message: string, type: ToastType = 'success') {
+    setToast({ visible: true, message, type });
+  }
 
   function load() {
     setProfile(getProfile() ?? null);
@@ -157,17 +184,20 @@ export default function SettingsScreen() {
     try {
       await performBackup();
       load();
-      Alert.alert('Backup Complete', 'Your data has been saved to device storage.');
-    } catch {
-      Alert.alert('Backup Failed', 'Check storage permissions and try again.');
+      showToast('Backup saved to Downloads', 'success');
+    } catch (e: any) {
+      if (e?.message !== 'cancelled') {
+        showToast('Backup failed. Check storage permissions.', 'error');
+      }
     }
   }
 
   async function handleShare() {
     try {
       await shareBackup();
+      showToast('Backup shared successfully', 'success');
     } catch {
-      Alert.alert('Share Failed', 'Could not share the backup file.');
+      showToast('Could not share the backup file.', 'error');
     }
   }
 
@@ -182,7 +212,7 @@ export default function SettingsScreen() {
           onPress: async () => {
             const result = await pickAndValidateBackup();
             if (!result.ok) {
-              if (result.error !== 'cancelled') Alert.alert('Restore Failed', result.error);
+              if (result.error !== 'cancelled') showToast(result.error, 'error');
               return;
             }
             const date = new Date(result.exportedAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
@@ -196,8 +226,8 @@ export default function SettingsScreen() {
                   onPress: () => {
                     applyRestore(result.data);
                     load();
-                    Alert.alert('Restored', 'Data restored successfully.');
-                    router.replace('/');
+                    showToast('Data restored successfully', 'success');
+                    setTimeout(() => router.replace('/'), 1200);
                   },
                 },
               ],
@@ -215,6 +245,14 @@ export default function SettingsScreen() {
       ' ' + d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
   }
 
+  const ROWS = [
+    { section: 'PROFILE',       delay: 0   },
+    { section: 'PREFERENCES',   delay: 40  },
+    { section: 'SECURITY',      delay: 80  },
+    { section: 'CATEGORIES',    delay: 120 },
+    { section: 'DATA & BACKUP', delay: 160 },
+  ];
+
   return (
     <SafeAreaView style={styles.root} edges={['top']}>
       <View style={styles.navBar}>
@@ -226,42 +264,51 @@ export default function SettingsScreen() {
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
-        <Text style={styles.sectionHeader}>PROFILE</Text>
-        <View style={styles.card}>
-          <SettingsRow label="Edit Profile" onPress={() => setEditVisible(true)} />
-        </View>
 
-        <Text style={[styles.sectionHeader, { marginTop: 24 }]}>PREFERENCES</Text>
-        <View style={styles.card}>
-          <SettingsRow label="Currency" value="₹ Indian Rupee" chevron={false} />
-          <View style={styles.divider} />
-          <View style={styles.row}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-              <Lock size={16} color={Colors.textSecondary} strokeWidth={1.8} />
-              <Text style={styles.rowLabel}>App Lock</Text>
+        <StaggerRow delay={0}>
+          <Text style={styles.sectionHeader}>PROFILE</Text>
+          <View style={styles.card}>
+            <SettingsRow label="Edit Profile" onPress={() => setEditVisible(true)} />
+          </View>
+        </StaggerRow>
+
+        <StaggerRow delay={40}>
+          <Text style={[styles.sectionHeader, { marginTop: 24 }]}>PREFERENCES</Text>
+          <View style={styles.card}>
+            <SettingsRow label="Currency" value="₹ Indian Rupee" chevron={false} />
+            <View style={styles.divider} />
+            <View style={styles.row}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <Lock size={16} color={Colors.textSecondary} strokeWidth={1.8} />
+                <Text style={styles.rowLabel}>App Lock</Text>
+              </View>
+              <Text style={styles.rowValue}>{authMethod} (mandatory)</Text>
             </View>
-            <Text style={styles.rowValue}>{authMethod} (mandatory)</Text>
           </View>
-        </View>
+        </StaggerRow>
 
-        <Text style={[styles.sectionHeader, { marginTop: 24 }]}>CATEGORIES</Text>
-        <View style={styles.card}>
-          <SettingsRow label="Manage Categories" onPress={() => router.push('/categories')} />
-        </View>
-
-        <Text style={[styles.sectionHeader, { marginTop: 24 }]}>DATA & BACKUP</Text>
-        <View style={styles.card}>
-          <View style={styles.row}>
-            <Text style={styles.rowLabel}>Last Backup</Text>
-            <Text style={styles.rowValue}>{formatBackupTime(lastBackup)}</Text>
+        <StaggerRow delay={80}>
+          <Text style={[styles.sectionHeader, { marginTop: 24 }]}>CATEGORIES</Text>
+          <View style={styles.card}>
+            <SettingsRow label="Manage Categories" onPress={() => router.push('/categories')} />
           </View>
-          <View style={styles.divider} />
-          <SettingsRow label="Backup Now" onPress={handleBackup} />
-          <View style={styles.divider} />
-          <SettingsRow label="Share Backup" onPress={handleShare} />
-          <View style={styles.divider} />
-          <SettingsRow label="Restore from Backup" onPress={handleRestore} />
-        </View>
+        </StaggerRow>
+
+        <StaggerRow delay={120}>
+          <Text style={[styles.sectionHeader, { marginTop: 24 }]}>DATA & BACKUP</Text>
+          <View style={styles.card}>
+            <View style={styles.row}>
+              <Text style={styles.rowLabel}>Last Backup</Text>
+              <Text style={styles.rowValue}>{formatBackupTime(lastBackup)}</Text>
+            </View>
+            <View style={styles.divider} />
+            <SettingsRow label="Backup Now" onPress={handleBackup} />
+            <View style={styles.divider} />
+            <SettingsRow label="Share Backup" onPress={handleShare} />
+            <View style={styles.divider} />
+            <SettingsRow label="Restore from Backup" onPress={handleRestore} />
+          </View>
+        </StaggerRow>
 
         <View style={{ height: 60 }} />
       </ScrollView>
@@ -271,6 +318,13 @@ export default function SettingsScreen() {
         profile={profile}
         onClose={() => setEditVisible(false)}
         onSaved={() => { setEditVisible(false); load(); }}
+      />
+
+      <Toast
+        visible={toast.visible}
+        message={toast.message}
+        type={toast.type}
+        onHide={() => setToast((t) => ({ ...t, visible: false }))}
       />
     </SafeAreaView>
   );
