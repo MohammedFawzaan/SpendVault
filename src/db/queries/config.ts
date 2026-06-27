@@ -42,3 +42,21 @@ export function setLastBackupAt(isoDate: string): void {
 export function getAppVersion(): string {
   return getConfig('app_version') ?? '1.0';
 }
+
+export function getAuthMethod(): 'biometric' | 'pin' | null {
+  const v = getConfig('auth_method');
+  return v === 'biometric' || v === 'pin' ? v : null;
+}
+
+export function setAuthMethod(method: 'biometric' | 'pin'): void {
+  setConfig('auth_method', method);
+}
+
+export function getPin(): string | null {
+  const v = getConfig('pin');
+  return v && v.length > 0 ? v : null;
+}
+
+export function setPin(pin: string): void {
+  setConfig('pin', pin);
+}

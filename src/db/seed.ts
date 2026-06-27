@@ -23,6 +23,8 @@ export function seedDatabase(): void {
     ['onboarding_complete',    'false'],
     ['sms_permission_granted', 'false'],
     ['last_backup_at',         ''],
+    ['auth_method',            ''],
+    ['pin',                    ''],
   ];
 
   for (const [key, value] of configDefaults) {

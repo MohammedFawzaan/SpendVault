@@ -19,6 +19,7 @@
       },
       "predictiveBackGestureEnabled": false,
       "package": "com.fawzaan.SpendVault",
+      "softwareKeyboardLayoutMode": "pan",
       "permissions": [
         "android.permission.READ_SMS",
         "android.permission.RECEIVE_SMS",
@@ -72,7 +73,8 @@
         }
       ],
       "expo-background-fetch",
-      "expo-task-manager"
+      "expo-task-manager",
+      "@react-native-community/datetimepicker"
     ],
     "experiments": {
       "typedRoutes": true,

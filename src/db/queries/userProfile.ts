@@ -11,6 +11,7 @@ export function createProfile(data: Omit<InsertUserProfile, 'id' | 'createdAt' |
   const timestamp = now();
   db.insert(userProfile)
     .values({ ...data, id: 1, createdAt: timestamp, updatedAt: timestamp })
+    .onConflictDoUpdate({ target: userProfile.id, set: { ...data, updatedAt: timestamp } })
     .run();
 }
 

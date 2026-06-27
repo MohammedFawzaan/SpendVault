@@ -1,17 +1,8 @@
-import { Text, View, StyleSheet } from "react-native";
+import { Redirect } from 'expo-router';
+import { isOnboardingComplete } from '@/db/queries/config';
 
 export default function Index() {
-  return (
-    <View style={styles.container}>
-      <Text>Edit src/app/index.tsx to edit this screen.</Text>
-    </View>
-  );
+  const done = isOnboardingComplete();
+  if (!done) return <Redirect href="/onboarding/splash" />;
+  return <Redirect href="/lock" />;
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-});
