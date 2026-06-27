@@ -408,3 +408,36 @@ export function getMonthSummary(month: number, year: number) {
     expenses: expenseRow?.total ?? 0,
   };
 }
+
+export function getTransactionsByNature(nature: string): TransactionWithCategory[] {
+  return db
+    .select({
+      id:            transactions.id,
+      amount:        transactions.amount,
+      type:          transactions.type,
+      nature:        transactions.nature,
+      who:           transactions.who,
+      what:          transactions.what,
+      date:          transactions.date,
+      whereLocation: transactions.whereLocation,
+      why:           transactions.why,
+      paymentMethod: transactions.paymentMethod,
+      categoryId:    transactions.categoryId,
+      note:          transactions.note,
+      month:         transactions.month,
+      year:          transactions.year,
+      source:        transactions.source,
+      confirmed:     transactions.confirmed,
+      upiRef:        transactions.upiRef,
+      createdAt:     transactions.createdAt,
+      updatedAt:     transactions.updatedAt,
+      categoryName:  categories.name,
+      categoryIcon:  categories.icon,
+      categoryColor: categories.color,
+    })
+    .from(transactions)
+    .leftJoin(categories, eq(transactions.categoryId, categories.id))
+    .where(eq(transactions.nature, nature))
+    .orderBy(desc(transactions.date))
+    .all() as TransactionWithCategory[];
+}

@@ -9,8 +9,9 @@ import Animated, {
 import { Home, List, Target, User, Plus } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import { FontFamily } from '@/constants/typography';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { AddTransactionModal } from '@/components/transactions/AddTransactionModal';
+import { getUnconfirmedTransactions } from '@/db/queries/transactions';
 
 type TabName = 'index' | 'transactions' | 'budget-goals' | 'profile';
 
@@ -24,6 +25,11 @@ const TABS: { name: TabName; label: string; Icon: any }[] = [
 function CustomTabBar({ state, navigation }: any) {
   const insets = useSafeAreaInsets();
   const [modalVisible, setModalVisible] = useState(false);
+  const [pendingCount, setPendingCount] = useState(0);
+
+  useEffect(() => {
+    setPendingCount(getUnconfirmedTransactions().length);
+  }, [state.index]);
 
   // map expo-router state index → our tab names
   // route order in state: index(0), transactions(1), budget-goals(2), profile(3)
@@ -39,6 +45,7 @@ function CustomTabBar({ state, navigation }: any) {
             tab={tab}
             isActive={activeRouteName === tab.name}
             onPress={() => navigation.navigate(tab.name)}
+            badge={tab.name === 'transactions' && pendingCount > 0 ? pendingCount : 0}
           />
         ))}
 
@@ -77,10 +84,12 @@ function TabItem({
   tab,
   isActive,
   onPress,
+  badge = 0,
 }: {
   tab: { name: TabName; label: string; Icon: any };
   isActive: boolean;
   onPress: () => void;
+  badge?: number;
 }) {
   const scale = useSharedValue(1);
   const animStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
@@ -95,12 +104,17 @@ function TabItem({
   return (
     <TouchableOpacity style={styles.tabItem} onPress={handlePress} activeOpacity={0.8}>
       {isActive && <View style={styles.activeIndicator} />}
-      <Animated.View style={animStyle}>
+      <Animated.View style={[animStyle, { position: 'relative' }]}>
         <tab.Icon
           size={22}
           color={isActive ? Colors.primary : Colors.textTertiary}
           strokeWidth={1.8}
         />
+        {badge > 0 && (
+          <View style={styles.badge}>
+            <Text style={styles.badgeText}>{badge > 9 ? '9+' : badge}</Text>
+          </View>
+        )}
       </Animated.View>
       <Text
         style={[styles.tabLabel, isActive && styles.tabLabelActive]}
@@ -163,6 +177,13 @@ const styles = StyleSheet.create({
     fontFamily: FontFamily.semiBold,
     color: Colors.primary,
   },
+  badge: {
+    position: 'absolute', top: -4, right: -6,
+    minWidth: 16, height: 16, borderRadius: 8,
+    backgroundColor: Colors.danger, alignItems: 'center', justifyContent: 'center',
+    paddingHorizontal: 3,
+  },
+  badgeText: { fontFamily: FontFamily.bold, fontSize: 9, color: '#fff' },
   fabSlot: {
     width: 56,
     alignItems: 'center',

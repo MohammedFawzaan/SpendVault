@@ -8,6 +8,7 @@ import {
   FlatList,
   RefreshControl,
   SectionList,
+  ScrollView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { SlidersHorizontal, Search, X, ChevronLeft, ChevronRight } from 'lucide-react-native';
@@ -147,6 +148,46 @@ export default function TransactionsScreen() {
         </TouchableOpacity>
       </View>
 
+      {/* Filter chips */}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={styles.chipScroll}
+        contentContainerStyle={styles.chipContent}
+      >
+        {([
+          { label: 'All',           key: undefined,          field: undefined },
+          { label: 'Debit',         key: 'debit',            field: 'type' },
+          { label: 'Credit',        key: 'credit',           field: 'type' },
+          { label: 'Cash',          key: 'cash',             field: 'paymentMethod' },
+          { label: 'UPI',           key: 'upi',              field: 'paymentMethod' },
+          { label: 'Card',          key: 'card',             field: 'paymentMethod' },
+          { label: 'Bank Transfer', key: 'bank_transfer',    field: 'paymentMethod' },
+        ] as const).map((chip) => {
+          const isActive = chip.field === undefined
+            ? !filters.type && !filters.paymentMethod
+            : filters[chip.field as keyof FilterState] === chip.key;
+          return (
+            <TouchableOpacity
+              key={chip.label}
+              style={[styles.chip, isActive && styles.chipActive]}
+              onPress={() => {
+                if (chip.field === undefined) {
+                  setFilters({});
+                } else if (chip.field === 'type') {
+                  setFilters((f) => ({ ...f, type: isActive ? undefined : chip.key as 'debit' | 'credit', paymentMethod: undefined }));
+                } else {
+                  setFilters((f) => ({ ...f, paymentMethod: isActive ? undefined : chip.key as string, type: undefined }));
+                }
+              }}
+              activeOpacity={0.7}
+            >
+              <Text style={[styles.chipText, isActive && styles.chipTextActive]}>{chip.label}</Text>
+            </TouchableOpacity>
+          );
+        })}
+      </ScrollView>
+
       {/* Summary */}
       <View style={styles.summaryRow}>
         <View style={styles.summaryItem}>
@@ -246,6 +287,16 @@ const styles = StyleSheet.create({
     gap: 16, paddingVertical: 8,
   },
   monthLabel: { ...Typography.h3, color: Colors.textPrimary },
+
+  chipScroll: { marginBottom: 10 },
+  chipContent: { paddingHorizontal: 16, gap: 8 },
+  chip: {
+    paddingHorizontal: 14, paddingVertical: 7, borderRadius: 999,
+    backgroundColor: Colors.surface, borderWidth: 1.5, borderColor: Colors.borderDefault,
+  },
+  chipActive: { backgroundColor: Colors.primaryLight, borderColor: Colors.primary },
+  chipText: { ...Typography.label, color: Colors.textSecondary },
+  chipTextActive: { color: Colors.primary },
 
   summaryRow: {
     flexDirection: 'row', marginHorizontal: 16, marginBottom: 12,
